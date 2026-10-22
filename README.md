@@ -15,6 +15,8 @@
 - [Нейросценарист](skills/сценарист/SKILL.md)
 - [Нейроресерчер](skills/ресерчер/SKILL.md)
 
+- [Нейроразработчик](skills/разработчик/SKILL.md)
+
 ## Шаблоны
 
 - [Telegram-бот на Python](templates/bot_template.py)
