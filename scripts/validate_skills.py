@@ -13,7 +13,7 @@ if len(files) != 39:
     errors.append(f"Expected 39 skills, got {len(files)}")
 groups = {"work": 10, "codex": 8}
 for group, expected in groups.items():
-    actual = sum(group in p.parts for p in files)
+    actual = sum(p.relative_to(root / 'skills').parts[0] == group for p in files)
     if actual != expected:
         errors.append(f"Expected {expected} {group} skills, got {actual}")
 names = set()
