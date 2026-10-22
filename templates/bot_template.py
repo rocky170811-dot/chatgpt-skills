@@ -9,6 +9,7 @@
 """
 
 import csv
+from html import escape
 import logging
 import os
 from datetime import datetime
@@ -43,6 +44,7 @@ MAGNET_TEXT = (
     "Если будут вопросы — просто напиши мне сюда."
 )
 NEED_SUB_TEXT = "Чтобы забрать гайд, подпишись на канал и нажми кнопку ещё раз."
+CHECK_UNAVAILABLE_TEXT = "Не удалось проверить подписку. Попробуй позже; если проблема повторяется, напиши администратору."
 
 logging.basicConfig(
     format="%(asctime)s — %(levelname)s — %(message)s", level=logging.INFO
@@ -65,7 +67,7 @@ def main_keyboard() -> InlineKeyboardMarkup:
 
 # --- Проверка подписки ------------------------------------------------------
 
-async def is_subscribed(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
+async def is_subscribed(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool | None:
     """True, если проверка не настроена или пользователь состоит в канале.
 
     Важно: бот должен быть администратором канала, иначе Telegram вернёт ошибку.
@@ -77,7 +79,7 @@ async def is_subscribed(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> boo
         return member.status in ("member", "administrator", "creator")
     except Exception as exc:
         log.warning("Не смог проверить подписку (бот админ канала?): %s", exc)
-        return True  # не блокируем человека из-за нашей ошибки настройки
+        return None  # fail closed: ошибка проверки не подтверждает подписку
 
 
 # --- Хендлеры ---------------------------------------------------------------
@@ -85,7 +87,7 @@ async def is_subscribed(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> boo
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     name = update.effective_user.first_name or "друг"
     await update.message.reply_text(
-        WELCOME.format(name=name),
+        WELCOME.format(name=escape(name)),
         reply_markup=main_keyboard(),
         parse_mode=ParseMode.HTML,
     )
@@ -96,7 +98,10 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await query.answer()  # без этого кнопка «залипает»
 
     if query.data == "magnet":
-        if await is_subscribed(query.from_user.id, context):
+        subscribed = await is_subscribed(query.from_user.id, context)
+        if subscribed is None:
+            await query.message.reply_text(CHECK_UNAVAILABLE_TEXT)
+        elif subscribed:
             await query.message.reply_text(MAGNET_TEXT, parse_mode=ParseMode.HTML)
             save_lead(query.from_user, "забрал гайд")
         else:
@@ -133,6 +138,12 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # --- Заявки в CSV -----------------------------------------------------------
 
+def safe_csv_cell(value) -> str:
+    """Neutralize spreadsheet formulas in user-controlled CSV fields."""
+    text = str(value)
+    return "\u0027" + text if text.lstrip().startswith(("=", "+", "-", "@")) else text
+
+
 def save_lead(user, message: str) -> None:
     is_new = not LEADS_FILE.exists()
     with LEADS_FILE.open("a", newline="", encoding="utf-8-sig") as f:
@@ -142,9 +153,9 @@ def save_lead(user, message: str) -> None:
         writer.writerow([
             datetime.now().strftime("%Y-%m-%d %H:%M"),
             user.id,
-            user.username or "",
-            user.first_name or "",
-            message,
+            safe_csv_cell(user.username or ""),
+            safe_csv_cell(user.first_name or ""),
+            safe_csv_cell(message),
         ])
 
 
