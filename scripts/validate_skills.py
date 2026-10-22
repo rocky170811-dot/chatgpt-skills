@@ -9,8 +9,8 @@ import yaml
 root = Path(__file__).resolve().parents[1]
 files = sorted((root / "skills").glob("**/SKILL.md"))
 errors = []
-if len(files) != 39:
-    errors.append(f"Expected 39 skills, got {len(files)}")
+if len(files) != 48:
+    errors.append(f"Expected 48 skills, got {len(files)}")
 groups = {"work": 10, "codex": 8}
 for group, expected in groups.items():
     actual = sum(p.relative_to(root / 'skills').parts[0] == group for p in files)
