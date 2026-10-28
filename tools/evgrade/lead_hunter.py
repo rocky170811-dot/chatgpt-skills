@@ -118,7 +118,7 @@ def draft(company, observation, greeting='Hello', case_claim=False):
             'potential return. The introductory 40-minute call is free.\n\n'
             'When would be convenient?')
 
-def audit(values):
+def audit(values, source_hyperlinks=None):
     if not values or values[0][:5] != ['№', 'Комментарии', 'Важная инф', 'Страна', 'Компания']:
         raise ValueError('Unexpected source schema; do not guess column mapping')
     records, names = [], {}
@@ -143,8 +143,11 @@ def audit(values):
             issues.append('official website missing')
         if not present(row[14]) and not present(row[15]):
             issues.append('business contact missing')
-        if not str(row[11] or '').startswith('http'):
+        source = (source_hyperlinks or {}).get(str(rownum), str(row[11] or ''))
+        if not source.startswith('http'):
             issues.append('source is display text; inspect hyperlink target')
+        elif re.search(r'/(vacancies(?:/|$)|search/vacancy)', urlsplit(source).path):
+            issues.append('generic job search URL; employer-specific evidence missing')
         # Source schema has no checked_at, per-contact provenance or signal date.
         issues.append('freshness and contact provenance not recorded')
         records.append({'row': rownum, 'company': name, 'result': 'REVERIFY',
@@ -157,7 +160,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     data = json.loads(args.snapshot.read_text())
-    records = audit(data['values'])
+    records = audit(data['values'], data.get('source_hyperlinks'))
     args.output.mkdir(parents=True, exist_ok=True)
     with (args.output/'audit.csv').open('w', encoding='utf-8-sig', newline='') as stream:
         writer = csv.DictWriter(stream, fieldnames=list(records[0]))

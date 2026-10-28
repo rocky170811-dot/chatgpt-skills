@@ -50,5 +50,11 @@ class QualityTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ledger.stage('today', [2])
 
+    def test_generic_job_link_does_not_confirm_employer(self):
+        header = ['№', 'Комментарии', 'Важная инф', 'Страна', 'Компания']
+        row = ['1', '', '', 'Россия', 'Example']
+        result = audit([header, row], {'2': 'https://hh.ru/vacancies/sales'})
+        self.assertIn('generic job search URL', result[0]['issues'])
+
 if __name__ == '__main__':
     unittest.main()
